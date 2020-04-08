@@ -2,7 +2,6 @@ import React, { Component } from "react";
 import Upload from "./components/upload";
 import ImageSlider from "./components/imageSlider";
 import axios from "axios";
-
 import "./App.css";
 
 class App extends Component {
@@ -10,9 +9,9 @@ class App extends Component {
     super(props);
     this.state = {
       dunkVid: null,
-      videoUploaded: false,
+      videoAndImagesSaved: false,
       dunkVidName: null,
-      dunkPhotoName: null,
+      dunkVidTimeStamp: null,
     };
     this.imageCount = 0;
   }
@@ -33,20 +32,17 @@ class App extends Component {
   };
 
   onClickHandler = () => {
-    if (this.state.dunkVid !== null) {
-      const video = new FormData();
-      video.append("file", this.state.dunkVid);
-      this.saveFile(video).then((res) => {
-        const newFilename = res.data.filename;
-        const origName = res.data.originalname;
-        this.setState({
-          dunkVidName: newFilename,
-          dunkPhotoName: origName.substring(0, origName.length - 4),
-          videoUploaded: true,
-        });
-        this.showImageAt(0);
+    const video = new FormData();
+    video.append("file", this.state.dunkVid);
+    this.saveFile(video).then((res) => {
+      const newFilename = res.data.filename;
+      const origName = res.data.originalname;
+      this.setState({
+        dunkVidName: newFilename,
+        dunkVidTimeStamp: newFilename.substring(0, 13),
       });
-    }
+      this.showImageAt(0);
+    });
   };
 
   getVideoImage = (path, secs, callback) => {
@@ -72,7 +68,7 @@ class App extends Component {
         formData.append(
           "file",
           blob,
-          me.state.dunkPhotoName + "-" + me.imageCount + ".png"
+          me.state.dunkVidName + "-" + me.imageCount + ".png"
         );
         me.imageCount = me.imageCount + 1;
         me.saveFile(formData);
@@ -85,16 +81,22 @@ class App extends Component {
   showImageAt = (secs) => {
     var duration;
     this.getVideoImage(
-      process.env.PUBLIC_URL + "/" + this.state.dunkVidName,
+      process.env.PUBLIC_URL +
+        "/" +
+        this.state.dunkVidTimeStamp +
+        "/" +
+        this.state.dunkVidName,
       function (totalTime) {
         duration = totalTime;
         return secs;
       },
       function (secs, event) {
         if (event.type === "seeked") {
-          secs = secs + 0.25;
+          secs = secs + 0.15;
           if (duration >= secs) {
             this.showImageAt(secs);
+          } else {
+            this.setState({ videoAndImagesSaved: true });
           }
         }
       }
@@ -103,14 +105,22 @@ class App extends Component {
 
   showUploadOrVideo = () => {
     // Show images
-    if (this.state.videoUploaded) {
-      return <ImageSlider />;
+    if (this.state.videoAndImagesSaved) {
+      return (
+        <ImageSlider
+          imageCount={this.imageCount}
+          dunkPhotoSrc={
+            this.state.dunkVidTimeStamp + "/" + this.state.dunkVidName
+          }
+        />
+      );
     } else {
       // Show upload element
       return (
         <Upload
           onClickHandler={this.onClickHandler}
           onChangeHandler={this.onChangeHandler}
+          dunkVid={this.state.dunkVid}
         />
       );
     }

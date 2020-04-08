@@ -3,6 +3,25 @@ import React, { Component } from "react";
 class Upload extends Component {
   state = {};
 
+  uploadButton = () => {
+    return (
+      <button
+        id="uploadButton"
+        type="button"
+        className="btn btn-success btn-block"
+        onClick={() => {
+          if (this.props.dunkVid !== null) {
+            const elem = document.getElementById("uploadButton");
+            elem.innerHTML = "Uploading...";
+            this.props.onClickHandler();
+          }
+        }}
+      >
+        Upload
+      </button>
+    );
+  };
+
   render() {
     return (
       <div className="container">
@@ -18,13 +37,7 @@ class Upload extends Component {
               />
             </div>
           </form>
-          <button
-            type="button"
-            className="btn btn-success btn-block"
-            onClick={this.props.onClickHandler}
-          >
-            Upload
-          </button>
+          {this.uploadButton()}
         </div>
       </div>
     );
