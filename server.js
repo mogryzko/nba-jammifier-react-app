@@ -15,11 +15,9 @@ var storage = multer.diskStorage({
       cb(null, dir);
     } else {
       dir = "public/" + timeStamp;
-      fs.ensureDir(dir, (err) => {
-        console.log(err); // => null
-        // dir has now been created, including the directory it is to be placed in
+      fs.ensureDir(dir).then((res) => {
+        cb(null, dir);
       });
-      cb(null, dir);
     }
   },
   filename: function (req, file, cb) {

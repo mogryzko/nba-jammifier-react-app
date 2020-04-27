@@ -1,7 +1,9 @@
 import React, { Component } from "react";
 
 class Upload extends Component {
-  state = {};
+  state = {
+    message: "Upload",
+  };
 
   uploadButton = () => {
     return (
@@ -11,13 +13,14 @@ class Upload extends Component {
         className="btn btn-success btn-block"
         onClick={() => {
           if (this.props.dunkVid !== null) {
-            const elem = document.getElementById("uploadButton");
-            elem.innerHTML = "Uploading...";
+            this.setState({
+              message: "Uploading...",
+            });
             this.props.onClickHandler();
           }
         }}
       >
-        Upload
+        {this.state.message}
       </button>
     );
   };
