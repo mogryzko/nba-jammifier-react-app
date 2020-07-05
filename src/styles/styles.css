@@ -1,0 +1,18 @@
+.imageSliderImage {
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.download {
+  background-color: DodgerBlue;
+  border: none;
+  color: white;
+  padding: 12px 30px;
+  cursor: pointer;
+  font-size: 20px;
+}
+
+/* Darker background on mouse-over */
+.download:hover {
+  background-color: RoyalBlue;
+}
