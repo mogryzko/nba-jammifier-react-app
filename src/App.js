@@ -9,13 +9,25 @@ class App extends Component {
     super(props);
     this.state = {
       dunkVid: null,
+      playerClickScreen: false,
       videoAndImagesSaved: false,
       dunkStartStopEntered: false,
-      dunkVidName: null,
-      dunkVidTimeStamp: null,
+      finalGifComplete: false,
+      dunkFolderName: null,
+      numImgs: 0,
+      x: 0,
+      y: 0,
     };
     this.imageCount = 0;
   }
+
+  sendVideo = (formData) => {
+    return axios
+      .post("http://localhost:5000/upload_video", formData, {})
+      .then((res) => {
+        return res;
+      });
+  };
 
   saveFile = (formData) => {
     return axios
@@ -34,14 +46,17 @@ class App extends Component {
   onClickHandler = () => {
     const video = new FormData();
     video.append("file", this.state.dunkVid);
-    this.saveFile(video).then(
+    this.sendVideo(video).then(
       (res) => {
-        const newFilename = res.data.filename;
+        const folderName = res.data.folder_name;
+        const numImgs = res.data.num_imgs;
+        const fps = res.data.fps;
         this.setState({
-          dunkVidName: newFilename,
-          dunkVidTimeStamp: newFilename.substring(0, 13),
+          dunkFolderName: folderName,
+          playerClickScreen: true,
+          numImgs: numImgs,
+          fps: fps,
         });
-        this.showImageAt(0);
       },
       (err) => {
         console.log("error loading video: ", err);
@@ -49,62 +64,13 @@ class App extends Component {
     );
   };
 
-  getVideoImage = (path, secs, callback) => {
-    var me = this;
-    var video = document.createElement("video");
-    video.onloadedmetadata = function () {
-      if ("function" === typeof secs) {
-        secs = secs(this.duration);
-      }
-      this.currentTime = Math.min(
-        Math.max(0, (secs < 0 ? this.duration : 0) + secs),
-        this.duration
-      );
-    };
-    video.onseeked = function (e) {
-      var canvas = document.createElement("canvas");
-      canvas.height = video.videoHeight;
-      canvas.width = video.videoWidth;
-      var ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const formData = new FormData();
-      canvas.toBlob(function (blob) {
-        formData.append(
-          "file",
-          blob,
-          me.state.dunkVidName + "-" + me.imageCount + ".png"
-        );
-        me.saveFile(formData);
-        me.imageCount = me.imageCount + 1;
-      });
-      callback.call(me, this.currentTime, e);
-    };
-    video.src = path;
-  };
-
-  showImageAt = (secs) => {
-    var duration;
-    this.getVideoImage(
-      process.env.PUBLIC_URL +
-        "/" +
-        this.state.dunkVidTimeStamp +
-        "/" +
-        this.state.dunkVidName,
-      function (totalTime) {
-        duration = totalTime;
-        return secs;
-      },
-      function (secs, event) {
-        if (event.type === "seeked") {
-          secs = secs + 0.15;
-          if (duration >= secs) {
-            this.showImageAt(secs);
-          } else {
-            this.setState({ videoAndImagesSaved: true });
-          }
-        }
-      }
-    );
+  playerClicked = (event) => {
+    const currentTargetRect = event.currentTarget.getBoundingClientRect();
+    this.setState({
+      x: event.pageX - currentTargetRect.left,
+      y: event.pageY - currentTargetRect.top,
+      videoAndImagesSaved: true,
+    });
   };
 
   dunkStartEndEntered = (start, end) => {
@@ -113,14 +79,42 @@ class App extends Component {
       dunkEnd: end,
       dunkStartStopEntered: true,
     });
-    // call flask w this
 
-    fetch("/testget")
-      .then(function (response) {
-        return response.text();
+    axios
+      .get("/exaggerate", {
+        params: {
+          folderName: this.state.dunkFolderName,
+          exag: 150,
+          dunk_start: start,
+          dunk_end: end,
+          x: this.state.x,
+          y: this.state.y,
+          fps: this.state.fps,
+        },
       })
-      .then(function (data) {
-        console.log(data); // this will be a string
+      .then((resp) => {
+        this.setState({
+          height: resp.data["height"],
+          width: resp.data["width"],
+          finalGifComplete: true,
+        });
+      });
+  };
+
+  downloadFinalVideo = () => {
+    var newWindow = window.open();
+    axios
+      .get("/return_final_video", {
+        params: {
+          folderName: this.state.dunkFolderName,
+        },
+      })
+      .then((resp) => {
+        let blob = new Blob([resp.data], { type: "video/mp4" });
+        let link = document.createElement("a");
+        link.href = newWindow.URL.createObjectURL(blob);
+        link.download = "original.mp4";
+        link.click();
       });
   };
 
@@ -128,14 +122,45 @@ class App extends Component {
     return <p>Loading...</p>;
   };
 
+  showDownloadFinalGif = () => {
+    return (
+      <React.Fragment>
+        <video
+          src={
+            "//" +
+            window.location.hostname +
+            ":5000/static/uploads/" +
+            this.state.dunkFolderName +
+            "/gifs/original.mp4"
+          }
+          controls="controls"
+          autoPlay
+          download
+        ></video>
+        <button onClick={() => this.downloadFinalVideo()}>Download</button>
+      </React.Fragment>
+    );
+  };
+
+  showPlayerSelectScreen = () => {
+    return (
+      <React.Fragment>
+        <p>Now click on the player in the image</p>
+        <img
+          src={"static/uploads/" + this.state.dunkFolderName + "/0.jpg"}
+          onClick={this.playerClicked}
+        ></img>
+      </React.Fragment>
+    );
+  };
+
   showImageSliderScreen = () => {
     return (
       <ImageSlider
         imageCount={this.imageCount}
-        dunkPhotoSrc={
-          this.state.dunkVidTimeStamp + "/" + this.state.dunkVidName
-        }
+        dunkFolderName={this.state.dunkFolderName}
         dunkStartEndEntered={this.dunkStartEndEntered}
+        numImgs={this.state.numImgs}
       />
     );
   };
@@ -151,16 +176,24 @@ class App extends Component {
   };
 
   view = () => {
+    // Show final gif
+    if (this.state.finalGifComplete) {
+      return this.showDownloadFinalGif();
+    }
+    // Begin exaggeration
     if (this.state.dunkStartStopEntered) {
       return this.showProcessingScreen();
     }
     // Show images
     if (this.state.videoAndImagesSaved) {
       return this.showImageSliderScreen();
-    } else {
-      // Show upload element
-      return this.showUploadScreen();
     }
+    // Player selection screen
+    if (this.state.playerClickScreen) {
+      return this.showPlayerSelectScreen();
+    }
+    // Show upload element
+    return this.showUploadScreen();
   };
 
   render() {

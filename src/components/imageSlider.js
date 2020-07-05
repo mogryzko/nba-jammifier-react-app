@@ -2,6 +2,7 @@ import React from "react";
 import "react-bootstrap-range-slider/dist/react-bootstrap-range-slider.css";
 import RangeSlider from "react-bootstrap-range-slider";
 import "../styles/styles.css";
+import axios from "axios";
 
 class ImageSlider extends React.Component {
   constructor(props) {
@@ -10,7 +11,7 @@ class ImageSlider extends React.Component {
       message: "Click on the image where your jump starts",
       sliderVal: 0,
       minImg: 0,
-      img: process.env.PUBLIC_URL + "/" + this.props.dunkPhotoSrc + "-0.png",
+      img: "static/uploads/" + this.props.dunkFolderName + "/0.jpg",
       imgBorderStyle: "5px solid transparent",
       dunkStart: 0,
       dunkStartClicked: false,
@@ -22,16 +23,15 @@ class ImageSlider extends React.Component {
     this.setState({
       sliderVal: parseInt(newVal),
       img:
-        process.env.PUBLIC_URL +
+        "static/uploads/" +
+        this.props.dunkFolderName +
         "/" +
-        this.props.dunkPhotoSrc +
-        "-" +
-        newVal +
-        ".png",
+        parseInt(newVal) +
+        ".jpg",
     });
   };
 
-  imageOnClick = () => {
+  imageOnClick = (event) => {
     if (!this.state.dunkStartClicked) {
       var nextSliderVal = this.state.sliderVal + 1;
       this.setState({
@@ -41,12 +41,11 @@ class ImageSlider extends React.Component {
         message: "Now click on the image where your jump ends",
         sliderVal: nextSliderVal,
         img:
-          process.env.PUBLIC_URL +
+          "static/uploads/" +
+          this.props.dunkFolderName +
           "/" +
-          this.props.dunkPhotoSrc +
-          "-" +
           nextSliderVal +
-          ".png",
+          ".jpg",
       });
     } else {
       this.props.dunkStartEndEntered(
@@ -78,7 +77,7 @@ class ImageSlider extends React.Component {
             this.sliderValChange(changeEvent);
           }}
           min={this.state.minImg}
-          max={this.props.imageCount}
+          max={this.props.numImgs}
         />
         <div
           style={{ border: this.state.imgBorderStyle, borderRadius: "7px" }}
