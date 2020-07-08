@@ -22,13 +22,6 @@ import base64
 
 app = Flask(__name__)
 
-'''
-exag = 150
-load = False
-dunk_start = 6
-dunk_end = 11
-xy = [245,143]
-'''
 path_to_model_folder = app.root_path + '/Mask_RCNN/'
 graph = tf.get_default_graph()
 
@@ -95,18 +88,13 @@ def create_video(path, filenames, save_path):
     return height, width
 
 
-def create_gif(path, filenames, save_path, fps):
+def create_gif(path, filenames, save_path):
     filenames = sorted(filenames, key = lambda f: int(re.search(r'([-+]?[0-9]+).jpg', f).group(1)))
-    frame = cv2.imread(os.path.join(path, filenames[0]))
-    height, width, _ = frame.shape
 
-    divisor = 5
-
-    with imageio.get_writer(save_path, mode='I', fps=fps//divisor) as gif:
-        for i in range(0, len(filenames), divisor):
+    with imageio.get_writer(save_path, mode='I') as gif:
+        for i in range(0, len(filenames)):
             image = imageio.imread(os.path.join(path, filenames[i]))
             gif.append_data(image)
-    return height, width
 
 
 def get_photo_names(path):
@@ -117,11 +105,9 @@ def get_photo_names(path):
     return photo_file_names
 
 
-'''
-@app.before_first_request
-def before_first_request_func():
-    load_model()
-'''
+
+model = load_model()
+
 
 
 @app.route('/upload_video', methods = ['POST'])
@@ -176,11 +162,15 @@ def return_final_video():
     folder_name = request.args.get('folderName')
     uploads_path = app.root_path +  '/static/uploads'
     video_path = uploads_path + '/' + folder_name + '/gifs/' + 'original.mp4'
-    return send_file(video_path, attachment_filename='original.mp4')
+    
+    resp = make_response(send_file(video_path, 'video/mp4', attachment_filename='original.mp4'))
+    resp.headers['Content-Disposition'] = 'inline'
+    return resp
 
 
 @app.route('/exaggerate', methods = ['GET'])
 def exaggerate():
+    print("EXAGGERATING")
     folder_name = request.args.get('folderName')
     exag = int(request.args.get('exag'))
     dunk_start = int(request.args.get('dunk_start'))
@@ -191,7 +181,8 @@ def exaggerate():
     path = app.root_path + '/static/uploads/' + folder_name
     
     save_folder = app.root_path + '/static/uploads/' + folder_name + '/gifs'
-    os.mkdir(save_folder)
+    if not os.path.isdir(save_folder):
+        os.makedirs(save_folder)
 
     path_to_model_folder = app.root_path + '/Mask_RCNN/'
     path_to_gif = path + '/gifs/original.gif'
@@ -199,13 +190,14 @@ def exaggerate():
 
 
     photo_names = get_photo_names(path)
-    #height, width = create_gif(path, photo_names, path_to_gif, fps)
+    create_gif(path, photo_names, path_to_gif)
     height, width = create_video(path, photo_names, path_to_video)
 
-    '''
     # Load gif
     print("loading dunk gif...")
     gif = imageio.mimread(path_to_gif, memtest=False)
+
+    load = False
 
     if load:
         print("loading masks...")
@@ -214,7 +206,9 @@ def exaggerate():
 
         # Get masks
         print("creating masks...")
+        start_time = time.time()
         masks = masking.get_masks(gif, dunk_start, dunk_end, xy, model, graph, save=True, folder=save_folder)
+        print("time to create masks: ", time.time()-start_time)
 
     # Get homographies
     print("calculating and saving homographies...")
@@ -239,7 +233,8 @@ def exaggerate():
 
     adj_gif = exaggeration.overlay_gif(gif, Hs, masks, xs, ys, dunk_start, dunk_end, stabilized_gif, stabilized_masks)
     imageio.mimsave(save_folder+'/final.gif', adj_gif)
-    '''
+
+
     resp = make_response({"height": height, "width": width})
     resp.headers['Access-Control-Allow-Origin'] = '*'
     return resp

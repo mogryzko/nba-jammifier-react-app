@@ -53,7 +53,7 @@ class App extends Component {
         const fps = res.data.fps;
         this.setState({
           dunkFolderName: folderName,
-          playerClickScreen: true,
+          videoAndImagesSaved: true,
           numImgs: numImgs,
           fps: fps,
         });
@@ -64,29 +64,14 @@ class App extends Component {
     );
   };
 
-  playerClicked = (event) => {
-    const currentTargetRect = event.currentTarget.getBoundingClientRect();
-    this.setState({
-      x: event.pageX - currentTargetRect.left,
-      y: event.pageY - currentTargetRect.top,
-      videoAndImagesSaved: true,
-    });
-  };
-
-  dunkStartEndEntered = (start, end) => {
-    this.setState({
-      dunkStart: start,
-      dunkEnd: end,
-      dunkStartStopEntered: true,
-    });
-
+  callExaggerate = () => {
     axios
       .get("/exaggerate", {
         params: {
           folderName: this.state.dunkFolderName,
           exag: 150,
-          dunk_start: start,
-          dunk_end: end,
+          dunk_start: this.state.dunkStart,
+          dunk_end: this.state.dunkEnd,
           x: this.state.x,
           y: this.state.y,
           fps: this.state.fps,
@@ -99,6 +84,25 @@ class App extends Component {
           finalGifComplete: true,
         });
       });
+  }
+  
+  playerClicked = (event) => {
+    const currentTargetRect = event.currentTarget.getBoundingClientRect();
+    this.setState({
+      x: event.pageX - currentTargetRect.left,
+      y: event.pageY - currentTargetRect.top,
+      dunkStartStopEntered: true,
+    }, () => {
+      this.callExaggerate();
+    });
+  };
+
+  dunkStartEndEntered = (start, end) => {
+    this.setState({
+      dunkStart: start,
+      dunkEnd: end,
+      playerClickScreen: true,
+    });
   };
 
   downloadFinalVideo = () => {
@@ -117,15 +121,30 @@ class App extends Component {
         link.click();
       });
   };
-
-  showProcessingScreen = () => {
+  
+  showProcessingScreen = () => {    
     return <p>Loading...</p>;
   };
+
 
   showDownloadFinalGif = () => {
     return (
       <React.Fragment>
-        <video
+        <img
+          src={
+            "//" +
+            window.location.hostname +
+            ":5000/static/uploads/" +
+            this.state.dunkFolderName +
+            "/gifs/final.gif"
+          }
+        ></img>
+        <button onClick={() => this.downloadFinalVideo()}>Download</button>
+      </React.Fragment>
+    );
+  };
+
+  /*<video
           src={
             "//" +
             window.location.hostname +
@@ -136,18 +155,14 @@ class App extends Component {
           controls="controls"
           autoPlay
           download
-        ></video>
-        <button onClick={() => this.downloadFinalVideo()}>Download</button>
-      </React.Fragment>
-    );
-  };
+        ></video> */
 
   showPlayerSelectScreen = () => {
     return (
       <React.Fragment>
         <p>Now click on the player in the image</p>
         <img
-          src={"static/uploads/" + this.state.dunkFolderName + "/0.jpg"}
+          src={"static/uploads/" + this.state.dunkFolderName + "/" + this.state.dunkStart + ".jpg"}
           onClick={this.playerClicked}
         ></img>
       </React.Fragment>
@@ -184,13 +199,13 @@ class App extends Component {
     if (this.state.dunkStartStopEntered) {
       return this.showProcessingScreen();
     }
-    // Show images
-    if (this.state.videoAndImagesSaved) {
-      return this.showImageSliderScreen();
-    }
     // Player selection screen
     if (this.state.playerClickScreen) {
       return this.showPlayerSelectScreen();
+    }
+    // Show images
+    if (this.state.videoAndImagesSaved) {
+      return this.showImageSliderScreen();
     }
     // Show upload element
     return this.showUploadScreen();

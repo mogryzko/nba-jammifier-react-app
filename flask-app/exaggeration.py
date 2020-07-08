@@ -150,9 +150,11 @@ def RANSAC_poly(x, y, max_iter, eps):
     max_inliers = 0
     poly = None
     for i in range(max_iter):
-        idxs = np.random.randint(n, size=4)
-        src_pts = np.array([x[idxs[0]], x[idxs[1]], x[idxs[2]], x[idxs[3]]])
-        dst_pts = np.array([y[idxs[0]], y[idxs[1]], y[idxs[2]], y[idxs[3]]])
+        idxs = np.random.randint(n, size=2)
+        #src_pts = np.array([x[idxs[0]], x[idxs[1]], x[idxs[2]], x[idxs[3]]])
+        #dst_pts = np.array([y[idxs[0]], y[idxs[1]], y[idxs[2]], y[idxs[3]]])
+        src_pts = np.array([x[0], x[idxs[0]], x[idxs[1]], x[-1]])
+        dst_pts = np.array([y[0], y[idxs[0]], y[idxs[1]], y[-1]])
         
          # trying to eliminate the cornercase of the straight line poly
 
