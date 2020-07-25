@@ -225,6 +225,10 @@ def move_mask(mask_pts, background, player, y_adj):
   return new_frame
 
 
+def perspective_transform(xys, H):
+    return cv2.perspectiveTransform(xys.reshape(-1,1,2), H).reshape(-1,2)
+
+
 def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_frame_num, stab_gif, stab_gif_masks):
     overlayed = []
     # reformat xs and ys
@@ -252,21 +256,6 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
             new_mask_pts = zip(*np.nonzero(dilated))
             new_mask_pts = list(new_mask_pts)
             new_mask_pts = np.asarray(new_mask_pts)
-
-            '''
-            # get all xy points on mask
-            frame_3_deep = player[:, :, :3]
-            mask_pts = zip(*np.nonzero(frame_3_deep))
-            mask_pts = list(mask_pts)
-            mask_pts = np.asarray(mask_pts)
-            
-            by, bx, bheight, bwidth = cv2.boundingRect(mask_pts[:,:2].reshape(-1,1,2))
-            # calculate box around mask pts
-            new_mask_pts = []
-            for x in range(bx-30,bx+bwidth+30):
-                for y in range(by-30,by+bheight+30):
-                    new_mask_pts.append((y,x))
-            '''
 
             # transform points based on inverse homography
             adj_centroid = np.asarray(adj_centroids[i - jump_start_frame_num], dtype=np.float32).reshape(-1, 1, 2) # reshape for perspectiveTransform
@@ -306,75 +295,6 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
             overlayed.append(original_gif[i])
 
     return overlayed
-
-
-'''
-def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_frame_num, stab_gif):
-    overlayed = []
-    # reformat xs and ys
-    adj_centroids = np.zeros((len(xs), 2))
-    adj_centroids[:, 0], adj_centroids[:, 1] = xs, ys
-
-    y_start = 0
-
-    bp = {}
-
-    a = np.array(stab_gif)[:, :, :, :3]
-    print('generating background image...')
-    background_npy = generate_background_image(stab_gif)
-    print('inpainting background...')
-    for i in tqdm(range(len(original_gif))):
-        if jump_start_frame_num <= i <= jump_end_frame_num:
-            # remove background from image
-            player = cv2.bitwise_and(original_gif[i], original_gif[i], mask=shaped_mask(masks[i]))
-            # remove player from image
-            background = cv2.bitwise_and(original_gif[i], original_gif[i], mask=1 - shaped_mask(masks[i]))
-
-            # move mask up based on y adj
-            frame_3_deep = player[:, :, :3]
-            mask_pts = zip(*np.nonzero(frame_3_deep))
-            mask_pts = list(mask_pts)
-            mask_pts = np.asarray(mask_pts)
-            # transform points based on inverse homography
-            adj_centroid = np.asarray(adj_centroids[i], dtype=np.float32).reshape(-1, 1, 2) # reshape for perspectiveTransform
-            transformed_centroid = cv2.perspectiveTransform(adj_centroid, np.linalg.inv(Hs[i]))
-            transformed_centroid = transformed_centroid.reshape(2)  # reshape back to normal
-            transformed_centroid = np.array(transformed_centroid, dtype=np.uint8)
-            # calculate y_adj based on transformed parabola
-            if i == jump_start_frame_num:
-                y_start = int(transformed_centroid[1])
-            y_adj = abs(y_start - int(transformed_centroid[1]))
-            # move mask up
-            adj_player = move_mask(mask_pts, background, player, y_adj)
-
-
-
-            # FILL BLACK PARTS
-            filled_image = np.empty_like(adj_player)
-            asdf = cv2.warpPerspective(background_npy, np.linalg.inv(Hs[i - 1]), background_npy.shape[:2][::-1])
-            for y in range(len(adj_player)):
-                for x in range(len(adj_player[y])):
-                    if sum(adj_player[y][x][:3]):
-                        filled_image[y][x] = adj_player[y][x]
-                    else:
-                        to_project = np.asarray([x, y], dtype=np.float32).reshape(-1, 1, 2)
-
-                        if y < len(asdf) and x < len(asdf[0]):
-                            filled_image[y][x] = asdf[y][x]
-                        #
-                        # wx, wy = np.array(cv2.perspectiveTransform(to_project, np.linalg.inv(Hs[i - 1]))[0][0], dtype=np.uint8)
-                        # if (wy, wx) not in bp:
-                        #     bp[(wy, wx)] = stab_gif[background_pixel(a[:,wy,wx], wy, wx)][wy][wx]
-                        # filled_image[y][x] = bp[(wy, wx)]
-            # overlay and append to gif
-            overlayed.append(filled_image)
-
-            #overlayed.append(adj_player)
-        else:
-            overlayed.append(original_gif[i])
-
-    return overlayed
-'''
 
 
 def generate_background_image(stabilized_gif):

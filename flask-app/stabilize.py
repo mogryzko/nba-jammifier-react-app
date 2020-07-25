@@ -116,26 +116,6 @@ def genSIFTMatchPairs(img1, img2):
     return pts1, pts2, matches[:250], kp1, kp2
 
 
-#Roop
-def generate_homographies(gif, debug=2, folder='russ_dunk'):
-    stabilized_gif = [gif[0]]
-    Hs = []
-    for i in tqdm(range(1, len(gif))):
-        if debug == 2 and i % 20 == 0:
-            imageio.mimsave(folder + '/stabilized.gif', stabilized_gif)
-        base = stabilized_gif[-1]
-        img = gif[i]
-        pts1, pts2, matches, kp1, kp2 = genSIFTMatchPairs(img, base)
-        H, mask = cv2.findHomography(pts1, pts2, cv2.RANSAC, 5.0)
-        #inliers_idx, H = RANSAC(pts1, pts2, 500, 20, 4) # 2000, 10, 10
-        Hs.append(H)
-        stabilized_gif.append(cv2.warpPerspective(img, H, img.shape[:2][::-1]))
-
-    if debug == 1:
-        np.save(folder + '/Hs.npy', Hs)
-
-    return Hs, stabilized_gif
-
 def generate_stabilized_masks(dunk_start, dunk_end, masks, Hs, height, width):
     stabilized_masks = []
     # start iterating Hs at dunk_start number
@@ -145,8 +125,8 @@ def generate_stabilized_masks(dunk_start, dunk_end, masks, Hs, height, width):
                 cv2.warpPerspective(np.array(mask * 255, dtype=np.uint8), Hs[Hs_iterable + i], (width, height)))
     return stabilized_masks
 
-#Max
-def generate_hs(gif, save=True, folder='russ_dunk'):
+#Max original 
+def generate_hs_and_gif(gif, save=True, folder='russ_dunk'):
 
     # Find Bounds
 
@@ -206,6 +186,24 @@ def generate_hs(gif, save=True, folder='russ_dunk'):
         np.save(folder + '/Hs.npy', Hs)
         imageio.mimsave(folder+'/stabilized.gif', stabilized_gif)
     return Hs, stabilized_gif, max_height, max_width
+
+#Max
+def generate_hs(gif, save=True, folder='russ_dunk'):
+
+    # Find Bounds
+
+    prev_frame = gif[0]
+    Hs = [np.identity(3)]
+    height = gif[0].shape[0]
+    width = gif[0].shape[1]
+    adjs = []
+    for i in tqdm(range(1, len(gif))):
+        base = prev_frame
+        img = gif[i]
+        pts1, pts2, matches, kp1, kp2 = genSIFTMatchPairs(img, base)
+        H, _ = cv2.findHomography(pts1, pts2, cv2.RANSAC, 5.0)
+        Hs.append(H)
+    return Hs
 
 
 if __name__ == '__main__':

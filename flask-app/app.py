@@ -19,11 +19,96 @@ import tensorflow as tf
 import io
 import time
 import base64
+import threading
 
 app = Flask(__name__)
 
 path_to_model_folder = app.root_path + '/Mask_RCNN/'
 graph = tf.get_default_graph()
+
+class JammifierThread(threading.Thread):
+    def __init__(self, folder_name, exag, dunk_start, dunk_end, xy, fps, height, width):
+        self.folder_name = folder_name
+        self.exag = exag
+        self.dunk_start = dunk_start
+        self.dunk_end = dunk_end
+        self.xy = xy
+        self.fps = fps
+        self.height = height
+        self.width = width
+        self.progress = 0
+        self.progress_message = 'loading dunk...'
+        super().__init__()
+
+    def run(self):
+        path = app.root_path + '/static/uploads/' + self.folder_name
+    
+        save_folder = app.root_path + '/static/uploads/' + self.folder_name + '/gifs'
+        if not os.path.isdir(save_folder):
+            os.makedirs(save_folder)
+
+        path_to_model_folder = app.root_path + '/Mask_RCNN/'
+        path_to_gif = path + '/gifs/original.gif'
+        path_to_video = path + '/gifs/original.mp4'
+
+
+        photo_names = get_photo_names(path)
+        create_gif(path, photo_names, path_to_gif)
+
+        # Load gif
+        print('Loading dunk...')
+        self.progress_message = 'loading dunk...'
+        self.progress = 10
+        gif = imageio.mimread(path_to_gif, memtest=False)
+
+        load = False
+
+        if load:
+            print("loading masks...")
+            masks = np.load(save_folder + '/masks.npy')
+        else:
+
+            # Get masks
+            print("creating masks...")
+            self.progress = 20
+            self.progress_message = "creating masks..."
+            masks = masking.get_masks(gif, self.dunk_start, self.dunk_end, self.xy, model, graph, save=True, folder=save_folder)
+
+        # Get homographies
+        print("calculating and saving homographies...")
+        self.progress_message = 'calculating and saving homographies...'
+        self.progress = 30
+        # previous
+        #Hs, stabilized_gif, stab_height, stab_width = stabilize.generate_hs(gif, folder=save_folder)
+        Hs = stabilize.generate_hs(gif)
+
+        #previous
+        # Generate stabilized gif of masks
+        #stabilized_masks = stabilize.generate_stabilized_masks(self.dunk_start, self.dunk_end, masks, Hs, stab_height, stab_width)
+        #imageio.mimsave(save_folder+'/stabilized_masks.gif', stabilized_masks)
+
+
+        # Get poly function for exaggeration
+        print("calculating exaggeration...")
+
+        gauss_kernel = 1
+        #xs, gauss, cs = exaggeration.center_of_mass(stabilized_masks, gauss_kernel)
+        xs, gauss, _ = exaggeration.center_of_mass(masks, gauss_kernel)
+
+        _, ys, first_poly = exaggeration.exaggerated_poly(gauss, exaggeration=self.exag)
+
+        # Exaggerate movement
+        print("exaggerating...")
+        self.progress_message = 'exaggerating...'
+        self.progress = 90
+
+        adj_gif = exaggeration.overlay_gif(gif, Hs, masks, xs, ys, self.dunk_start, self.dunk_end-1, stabilized_gif, stabilized_masks)
+        imageio.mimsave(save_folder+'/final.gif', adj_gif)
+        self.progress = 100
+
+
+
+jammifier_threads = {}
 
 
 def load_model():
@@ -110,6 +195,17 @@ model = load_model()
 
 
 
+@app.route('/progress', methods = ['GET'])
+def progress():
+    jammifier_thread = request.args.get('folderName')
+    progress_message = jammifier_threads[jammifier_thread].progress_message
+    progress = str(jammifier_threads[jammifier_thread].progress)
+
+    resp = jsonify({'progress': progress, 'progress_message': progress_message})
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    return resp
+
+
 @app.route('/upload_video', methods = ['POST'])
 def upload_video():
     video = request.files['file']
@@ -125,6 +221,7 @@ def upload_video():
     vidcap = cv2.VideoCapture(video_filepath)
     fps = vidcap.get(cv2.CAP_PROP_FPS)
     success,image = vidcap.read()
+    height, width, _ = image.shape
     count = 0
     while success:
         cv2.imwrite(dunk_folder_path + "/%d.jpg" % count, image)     # save frame as jpg file
@@ -133,7 +230,7 @@ def upload_video():
 
     os.remove(video_filepath)
 
-    resp = jsonify({'folder_name': folder_name, 'num_imgs': count - 1, 'fps': fps})
+    resp = jsonify({'folder_name': folder_name, 'num_imgs': count - 1, 'fps': fps, 'height': height, 'width': width})
     resp.headers['Access-Control-Allow-Origin'] = '*'
     return resp
 
@@ -170,13 +267,33 @@ def return_final_video():
 
 @app.route('/exaggerate', methods = ['GET'])
 def exaggerate():
-    print("EXAGGERATING")
     folder_name = request.args.get('folderName')
     exag = int(request.args.get('exag'))
     dunk_start = int(request.args.get('dunk_start'))
     dunk_end = int(request.args.get('dunk_end'))
     xy = [int(float(request.args.get('x'))), int(float(request.args.get('y')))]
     fps = int(float(request.args.get('fps')))
+    height = int(request.args.get('height'))
+    width = int(request.args.get('width'))
+
+    jammifier_threads[folder_name] = JammifierThread(folder_name, exag, dunk_start, dunk_end, xy, fps, height, width)
+    jammifier_threads[folder_name].start()
+
+
+    resp = make_response({"status": 200})
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    return resp
+'''
+@app.route('/exaggerate', methods = ['GET'])
+def exaggerate():
+    folder_name = request.args.get('folderName')
+    exag = int(request.args.get('exag'))
+    dunk_start = int(request.args.get('dunk_start'))
+    dunk_end = int(request.args.get('dunk_end'))
+    xy = [int(float(request.args.get('x'))), int(float(request.args.get('y')))]
+    fps = int(float(request.args.get('fps')))
+    height = int(request.args.get('height'))
+    width = int(request.args.get('width'))
 
     path = app.root_path + '/static/uploads/' + folder_name
     
@@ -191,7 +308,6 @@ def exaggerate():
 
     photo_names = get_photo_names(path)
     create_gif(path, photo_names, path_to_gif)
-    height, width = create_video(path, photo_names, path_to_video)
 
     # Load gif
     print("loading dunk gif...")
@@ -235,9 +351,10 @@ def exaggerate():
     imageio.mimsave(save_folder+'/final.gif', adj_gif)
 
 
-    resp = make_response({"height": height, "width": width})
+    resp = make_response({"status": 200})
     resp.headers['Access-Control-Allow-Origin'] = '*'
     return resp
+'''
 
 
 

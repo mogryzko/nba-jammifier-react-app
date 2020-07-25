@@ -17,6 +17,8 @@ class App extends Component {
       numImgs: 0,
       x: 0,
       y: 0,
+      progress: 0,
+      progressMessage: 'loading dunk...'
     };
     this.imageCount = 0;
   }
@@ -51,11 +53,15 @@ class App extends Component {
         const folderName = res.data.folder_name;
         const numImgs = res.data.num_imgs;
         const fps = res.data.fps;
+        const height = res.data.height;
+        const width = res.data.width;
         this.setState({
           dunkFolderName: folderName,
           videoAndImagesSaved: true,
           numImgs: numImgs,
           fps: fps,
+          height: height,
+          width: width,
         });
       },
       (err) => {
@@ -64,6 +70,31 @@ class App extends Component {
     );
   };
 
+  getProgress = () => {
+    const intervalId = setInterval( () => {
+      axios
+        .get("/progress", {
+          params: {
+            folderName: this.state.dunkFolderName,
+          },
+        })
+        .then((resp) => {
+          const progress = parseInt(resp.data.progress);
+          if (progress == 100) {
+            this.setState({
+              finalGifComplete: true,
+            });
+            clearInterval(intervalId);
+          }else if (progress < 100) {
+            this.setState({
+              progress: parseInt(progress),
+              progressMessage: resp.data.progress_message,
+            });
+          }
+        });
+      }, 1000)
+  }
+  
   callExaggerate = () => {
     axios
       .get("/exaggerate", {
@@ -75,14 +106,15 @@ class App extends Component {
           x: this.state.x,
           y: this.state.y,
           fps: this.state.fps,
+          height: this.state.height,
+          width: this.state.width,
         },
       })
       .then((resp) => {
         this.setState({
-          height: resp.data["height"],
-          width: resp.data["width"],
-          finalGifComplete: true,
+          dunkStartStopEntered: true,
         });
+        this.getProgress()
       });
   }
   
@@ -122,8 +154,12 @@ class App extends Component {
       });
   };
   
-  showProcessingScreen = () => {    
-    return <p>Loading...</p>;
+  showProcessingScreen = (progress, progressMessage) => {    
+    return (
+      <React.Fragment>
+        <p>{progressMessage}</p>
+        <p>{progress + '%'}</p>
+      </React.Fragment>);
   };
 
 
@@ -143,19 +179,6 @@ class App extends Component {
       </React.Fragment>
     );
   };
-
-  /*<video
-          src={
-            "//" +
-            window.location.hostname +
-            ":5000/static/uploads/" +
-            this.state.dunkFolderName +
-            "/gifs/original.mp4"
-          }
-          controls="controls"
-          autoPlay
-          download
-        ></video> */
 
   showPlayerSelectScreen = () => {
     return (
@@ -197,7 +220,7 @@ class App extends Component {
     }
     // Begin exaggeration
     if (this.state.dunkStartStopEntered) {
-      return this.showProcessingScreen();
+      return this.showProcessingScreen(this.state.progress, this.state.progressMessage);
     }
     // Player selection screen
     if (this.state.playerClickScreen) {
